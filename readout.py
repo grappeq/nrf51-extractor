@@ -1,9 +1,9 @@
 import hashlib
+import os
 import re
 import socket
 import struct
 from pathlib import Path
-import os
 
 # Based on:
 # https://www.pentestpartners.com/security-blog/nrf51822-code-readout-protection-bypass-a-how-to/
@@ -15,6 +15,7 @@ PROMPT = b">"
 DUMP_SIZE = 0x40000
 STEP = 4
 PROGRESS_INTERVAL = 0x400
+FLUSH_INTERVAL = 0x1000
 MAX_RETRIES = 3
 VERIFY_READS = 2
 
@@ -71,15 +72,34 @@ def read_word(sock, addr):
 try:
     sock = reconnect()
 
+    dump_path = Path("dump.bin")
+
+    start_addr = 0
     hasher = hashlib.sha256()
+
+    if dump_path.exists():
+        existing_size = dump_path.stat().st_size
+
+        if (existing_size % STEP) != 0:
+            raise RuntimeError(
+                f"Existing dump size is not aligned: {existing_size} bytes"
+            )
+
+        start_addr = existing_size
+
+        print(f"Resuming existing dump at {start_addr:#08x}")
+
+        with dump_path.open("rb") as existing:
+            while chunk := existing.read(4096):
+                hasher.update(chunk)
 
     with sock:
         # Note - the following pc and r4 instructions will need to change based on what
         # you learn by running the commands in gdb.config on your particular device that
         # you are reverse engineering.
 
-        with Path("dump.bin").open("wb") as outfile:
-            for addr in range(0, DUMP_SIZE, STEP):
+        with dump_path.open("ab") as outfile:
+            for addr in range(start_addr, DUMP_SIZE, STEP):
                 verified_value = None
 
                 for attempt in range(1, MAX_RETRIES + 1):
@@ -122,9 +142,11 @@ try:
                 outfile.write(packed)
                 hasher.update(packed)
 
-                if (addr % PROGRESS_INTERVAL) == 0:
+                if (addr % FLUSH_INTERVAL) == 0:
                     outfile.flush()
                     os.fsync(outfile.fileno())
+
+                if (addr % PROGRESS_INTERVAL) == 0:
                     percent = (addr / DUMP_SIZE) * 100
                     print(f"{addr:#08x} ({percent:5.1f}%)")
 
