@@ -16,6 +16,7 @@ PROGRESS_INTERVAL = 0x400
 FLUSH_INTERVAL = 0x1000
 
 HEX_RE = re.compile(r"0x[0-9a-fA-F]+")
+MDW_RE  = re.compile(r"0x[0-9a-fA-F]+:\s+([0-9a-fA-F]+)")
 
 
 def read_until(sock, prompt=PROMPT):
@@ -42,6 +43,7 @@ def reconnect(reset=False):
 
 
 def read_word(sock, addr):
+    """Read one word via the CRP bypass gadget. Required for protected flash only."""
     tncmd(sock, "reg pc 0x6d4")
     tncmd(sock, f"reg r4 {hex(addr)}")
     tncmd(sock, "step")
@@ -54,13 +56,30 @@ def read_word(sock, addr):
     return int(matches[0], 16)
 
 
-def read_block(sock, start, length, output_path=None, label=None):
+def read_word_direct(sock, addr):
+    """Read one word via OpenOCD's mdw command.
+
+    Works for any non-flash region (FICR, UICR, RAM, peripherals) that is not
+    protected by CRP. Faster and simpler than the bypass gadget.
+    """
+    resp = tncmd(sock, f"mdw {hex(addr)} 1")
+    match = MDW_RE.search(resp)
+    if not match:
+        raise RuntimeError(f"Unexpected mdw response for {addr:#010x}: {resp!r}")
+    return int(match.group(1), 16)
+
+
+def read_block(sock, start, length, output_path=None, label=None, word_reader=None):
     """Read a contiguous block of memory word by word.
 
     Yields (addr, value) pairs. If output_path is given, writes raw LE words
     to that file with resume support. Handles retries and reconnection.
-    Returns (sock, hasher) — sock may differ from input if reconnects occurred.
+
+    word_reader: callable(sock, addr) -> int. Defaults to read_word (bypass
+    gadget). Pass read_word_direct for non-flash regions that don't need CRP bypass.
     """
+    if word_reader is None:
+        word_reader = read_word
     end = start + length
     hasher = hashlib.sha256()
     current_sock = sock
@@ -92,7 +111,7 @@ def read_block(sock, start, length, output_path=None, label=None):
 
             for attempt in range(1, MAX_RETRIES + 1):
                 try:
-                    reads = [read_word(current_sock, addr) for _ in range(VERIFY_READS)]
+                    reads = [word_reader(current_sock, addr) for _ in range(VERIFY_READS)]
                     if len(set(reads)) != 1:
                         raise RuntimeError(f"Read mismatch at {addr:#010x}: {reads}")
                     verified_value = reads[0]
