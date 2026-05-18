@@ -9,7 +9,7 @@ import swd
 
 DEFAULT_START = 0x0
 DEFAULT_END = 0x40000
-DEFAULT_OUTPUT = "dump.bin"
+DEFAULT_OUTPUT = "dumps/dump.bin"
 
 
 def main():
@@ -25,6 +25,8 @@ def main():
     length = args.end - args.start
     if length <= 0:
         parser.error("--end must be greater than --start")
+
+    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 
     sock = swd.reconnect()
     hasher = hashlib.sha256()

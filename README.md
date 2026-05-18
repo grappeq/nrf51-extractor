@@ -40,18 +40,18 @@ Based on the instruction address you found and the registers involved, edit the 
 python readout.py
 ```
 
-Takes ~30 minutes. Writes `dump.bin`. Supports resume if interrupted.
+Takes ~30 minutes. Writes `dumps/dump.bin`. The `dumps/` directory is created automatically and is gitignored. Supports resume if interrupted.
 
 Optional arguments:
 ```
 --start   Start address (default: 0x0)
 --end     End address exclusive (default: 0x40000)
---output  Output file (default: dump.bin)
+--output  Output file (default: dumps/dump.bin)
 ```
 
 Example — dump FICR manually:
 ```bash
-python readout.py --start 0x10000000 --end 0x10000100 --output ficr_raw.bin
+python readout.py --start 0x10000000 --end 0x10000100 --output dumps/ficr_raw.bin
 ```
 
 ---
@@ -64,7 +64,7 @@ python readout.py --start 0x10000000 --end 0x10000100 --output ficr_raw.bin
 python nrf51_extract.py
 ```
 
-Default run extracts **FICR**, **UICR**, and a **peripheral register snapshot** (RAM excluded by default due to size). Output files are written to the current directory.
+Default run extracts **FICR**, **UICR**, and a **peripheral register snapshot** (RAM excluded by default due to size). Output files are written to `dumps/` by default. The directory is created automatically and is gitignored.
 
 ### Output files
 
@@ -81,7 +81,7 @@ Default run extracts **FICR**, **UICR**, and a **peripheral register snapshot** 
 
 ```
 --regions   Comma-separated list: ficr, uicr, ram, peripherals (default: ficr,uicr,peripherals)
---out-dir   Output directory (default: current directory)
+--out-dir   Output directory (default: dumps/)
 ```
 
 Examples:
