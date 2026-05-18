@@ -381,8 +381,8 @@ def main():
         ),
     )
     parser.add_argument(
-        "--out-dir", default=".",
-        help="Directory for output files (default: current directory)",
+        "--out-dir", default="dumps",
+        help="Directory for output files (default: dumps/)",
     )
     args = parser.parse_args()
 

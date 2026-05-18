@@ -91,20 +91,20 @@ python readout.py
 - Progress is printed every 1 KB.
 - The dump is flushed to disk every 4 KB.
 - If interrupted, re-running resumes from the last written byte automatically.
-- On completion, the SHA-256 of `dump.bin` is printed.
+- On completion, the SHA-256 of `dumps/dump.bin` is printed.
 
-The full 256 KB dump takes roughly 30 minutes.
+The full 256 KB dump takes roughly 30 minutes. Output lands in `dumps/` (created automatically, gitignored).
 
 Optional arguments:
 ```
 --start   Start address (default: 0x0)
 --end     End address exclusive (default: 0x40000)
---output  Output file (default: dump.bin)
+--output  Output file (default: dumps/dump.bin)
 ```
 
 Example — dump FICR manually:
 ```bash
-python readout.py --start 0x10000000 --end 0x10000100 --output ficr_raw.bin
+python readout.py --start 0x10000000 --end 0x10000100 --output dumps/ficr_raw.bin
 ```
 
 ## Step 4 — Extract device identity and configuration
@@ -115,13 +115,13 @@ python readout.py --start 0x10000000 --end 0x10000100 --output ficr_raw.bin
 python nrf51_extract.py
 ```
 
-Default run extracts **FICR**, **UICR**, and a **peripheral register snapshot** (RAM excluded by default due to size). Output files are written to the current directory.
+Default run extracts **FICR**, **UICR**, and a **peripheral register snapshot** (RAM excluded by default due to size). Output files are written to `dumps/` by default. The directory is created automatically and is gitignored.
 
 ### Options
 
 ```
 --regions   Comma-separated list: ficr, uicr, ram, peripherals (default: ficr,uicr,peripherals)
---out-dir   Output directory (default: current directory)
+--out-dir   Output directory (default: dumps/)
 ```
 
 Examples:
@@ -157,8 +157,8 @@ telnet localhost 4444
 ```
 reset halt
 nrf51 mass_erase
-flash write_image dump.bin 0
-flash write_image uicr.bin 0x10001000
+flash write_image dumps/dump.bin 0
+flash write_image dumps/uicr.bin 0x10001000
 reset run
 ```
 
@@ -166,15 +166,17 @@ reset run
 
 ## Output files
 
+All output files land in `dumps/` (gitignored).
+
 | File | Contents |
 |---|---|
-| `dump.bin` | Full 256 KB flash image (address 0x00000000–0x0003FFFF) |
-| `uicr.bin` | 1 KB UICR region (address 0x10001000–0x10001400) |
-| `ficr.bin` | Raw FICR region (256 bytes) |
-| `ficr.json` | Decoded: device ID, BLE MAC, ER/IR keys, flash geometry |
-| `uicr.json` | Decoded: readback protection, bootloader address, CUSTOMER[] words |
-| `ram.bin` | Raw SRAM dump (16 KB, only if requested) |
-| `peripherals.json` | Decoded peripheral register snapshot |
+| `dumps/dump.bin` | Full 256 KB flash image (address 0x00000000–0x0003FFFF) |
+| `dumps/uicr.bin` | 1 KB UICR region (address 0x10001000–0x10001400) |
+| `dumps/ficr.bin` | Raw FICR region (256 bytes) |
+| `dumps/ficr.json` | Decoded: device ID, BLE MAC, ER/IR keys, flash geometry |
+| `dumps/uicr.json` | Decoded: readback protection, bootloader address, CUSTOMER[] words |
+| `dumps/ram.bin` | Raw SRAM dump (16 KB, only if requested) |
+| `dumps/peripherals.json` | Decoded peripheral register snapshot |
 
 ## Reference
 
