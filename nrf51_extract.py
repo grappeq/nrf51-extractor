@@ -385,6 +385,10 @@ def main():
         "--out-dir", default="dumps",
         help="Directory for output files (default: dumps/)",
     )
+    parser.add_argument(
+        "--reset", action="store_true", default=False,
+        help="Issue 'reset halt' on connect instead of plain 'halt' (destroys runtime state)",
+    )
     args = parser.parse_args()
 
     requested = {r.strip().lower() for r in args.regions.split(",")}
@@ -395,9 +399,9 @@ def main():
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Connecting to OpenOCD...")
+    print(f"Connecting to OpenOCD ({'reset halt' if args.reset else 'halt, preserving runtime state'})...")
     try:
-        sock = swd.reconnect()
+        sock = swd.reconnect(reset=args.reset)
     except Exception as exc:
         print(f"Failed to connect: {exc}")
         sys.exit(1)

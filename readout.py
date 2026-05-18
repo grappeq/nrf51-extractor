@@ -28,7 +28,7 @@ def main():
 
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 
-    sock = swd.reconnect()
+    sock = swd.reconnect(reset=True)
     hasher = hashlib.sha256()
 
     try:
