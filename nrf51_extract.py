@@ -276,16 +276,19 @@ PERIPHERAL_MAP = [
 # Block dump
 # ---------------------------------------------------------------------------
 
-def dump_block(sock, name, start, length, out_dir, suffix=""):
+def dump_block(sock, name, start, length, out_dir, suffix="", word_reader=None):
     bin_path = out_dir / f"{name}{suffix}.bin"
     json_path = out_dir / f"{name}{suffix}.json"
+
+    if word_reader is None:
+        word_reader = swd.read_word_direct
 
     print(f"\n=== {name.upper()} ({start:#010x}, {length} bytes) ===")
 
     words = []
     for _addr, value in swd.read_block(sock, start, length,
                                         output_path=str(bin_path), label=name,
-                                        word_reader=swd.read_word_direct):
+                                        word_reader=word_reader):
         words.append(value)
 
     print(f"[{name}] Saved {bin_path}")
@@ -416,7 +419,10 @@ def main():
             if region not in requested:
                 continue
             start, length = REGIONS[region]
-            dump_block(sock, region, start, length, out_dir, suffix=args.suffix)
+            # RAM DAP access returns zeros on this device; route through the CPU gadget instead
+            reader = swd.read_word if region == "ram" else swd.read_word_direct
+            dump_block(sock, region, start, length, out_dir, suffix=args.suffix,
+                       word_reader=reader)
 
         if "peripherals" in requested:
             dump_peripherals(sock, out_dir, suffix=args.suffix)
