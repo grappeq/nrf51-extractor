@@ -154,6 +154,7 @@ def dec_uart_baud(v):
         0x00275000: 9600,   0x003B0000: 14400,  0x004EA000: 19200,
         0x0075F000: 38400,  0x00800000: 31250,  0x009D5000: 57600,
         0x00E50000: 115200, 0x01000000: 250000, 0x02000000: 1000000,
+        0x04000000: 250000,  # nRF51 encoding for 250kbps (also power-on default)
     }
     return {"raw": f"{v:#010x}", "bps": known.get(v, "unknown")}
 
@@ -223,7 +224,7 @@ PERIPHERAL_MAP = [
     ("UART0.PSELTXD",        0x4000250C, dec_psel),
     ("UART0.PSELRXD",        0x40002514, dec_psel),
     ("UART0.PSELCTS",        0x40002510, dec_psel),
-    ("UART0.PSELRTS",        0x4000250C, dec_psel),
+    ("UART0.PSELRTS",        0x40002508, dec_psel),
     ("UART0.BAUDRATE",       0x40002524, dec_uart_baud),
     ("UART0.CONFIG",         0x4000256C, dec_uart_config),
 
