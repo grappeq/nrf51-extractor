@@ -4,36 +4,115 @@ This is based on the great article at: https://www.pentestpartners.com/security-
 
 I'm mostly just making this for my own use but if useful for others then great.
 
+## Files
+
+| File | Purpose |
+|---|---|
+| `swd.py` | Shared transport layer (OpenOCD telnet, read_word, read_block) |
+| `readout.py` | Dump an arbitrary memory range to a raw binary file |
+| `nrf51_extract.py` | Structured extractor: FICR, UICR, RAM, and peripheral registers |
+
+---
+
 # How to read from a protected NRF51
 
 * (first read the article above)
-* start OPENOCD with /usr/local/share/openocd/bin/openocd -f /usr/local/share/openocd/bin/../scripts/interface/stlink.cfg -f /usr/local/share/openocd/bin/../scripts/target/nrf51.cfg -c "init; reset init;"
-* run "rungdb"
-* inside the GDB shell run "uicrtofile" to save all the uicr registers to a bin file.  If you are cloning a device you'll want to use these later.
-* run "dumpficr" to get a handy set of known memory values (when a device is protected most flash is not readable, but this is)
+* start OPENOCD with `/usr/local/share/openocd/bin/openocd -f .../interface/stlink.cfg -f .../target/nrf51.cfg -c "init; reset init;"`
+* run `rungdb`
+* inside the GDB shell run `uicrtofile` to save all the uicr registers to a bin file.  If you are cloning a device you'll want to use these later.
+* run `dumpficr` to get a handy set of known memory values (when a device is protected most flash is not readable, but this is)
 
-using the values from dumpficr do the following sequence:
-* monitor reset halt (to put the PC at the start addr)
-* regset 0x10000000 (or some other address with recognizable data in the FICR region) this fills all registers with that address
-* si to step one instruction
-* "i r" to dump all registers to see if the value you wanted was read into any register, if not try again by repeating regset/si/i r until you
-see the value you are looking for (should happen within 10 instructions)
-* Now you know where a load instruction is.  You'll use the PC address of that instrction later
-* You also know which register that load instruction is loading into.
-* set PC to that address again (so you can now find out WHICH register is being used as the source address register - probably the same)
-* run "regset2 0x10000000" but this command (look at its implementation) is reading from the first 52 bytes of data into r0 through r12
-* run "si" and "i r" - from the set of registers you see, you should be able to figure out WHICH register was used to contain the load address
+Using the values from dumpficr do the following sequence:
+* `monitor reset halt` (to put the PC at the start addr)
+* `regset 0x10000000` (or some other address with recognizable data in the FICR region) — fills all registers with that address
+* `si` to step one instruction
+* `i r` to dump all registers to see if the value you wanted was read into any register; if not, repeat `regset`/`si`/`i r` until you see it (should happen within 10 instructions)
+* Now you know the PC address of a load instruction and which register it loads into
+* Set PC to that address again, run `regset2 0x10000000` (reads the first 52 bytes into r0–r12), then `si` + `i r` to identify which register holds the source address
 
-Based on the instruction address you found, the register used to contain the address and the register used to contain the loaded value:
-Edit readout.py
+Based on the instruction address you found and the registers involved, edit the `read_word()` function in `swd.py` (the `reg pc` and `reg r4` lines).
 
-Run "python readout.py".  It will take about 30 minutes and will dump the entire 256KB of flash out of the device.
+---
 
-# How to write that image to a new device
+# Dumping firmware (256 KB flash)
+
+```bash
+python readout.py
+```
+
+Takes ~30 minutes. Writes `dump.bin`. Supports resume if interrupted.
+
+Optional arguments:
+```
+--start   Start address (default: 0x0)
+--end     End address exclusive (default: 0x40000)
+--output  Output file (default: dump.bin)
+```
+
+Example — dump FICR manually:
+```bash
+python readout.py --start 0x10000000 --end 0x10000100 --output ficr_raw.bin
+```
+
+---
+
+# Extracting device identity and configuration
+
+`nrf51_extract.py` dumps and decodes the regions most useful for device analysis.
+
+```bash
+python nrf51_extract.py
+```
+
+Default run extracts **FICR**, **UICR**, and a **peripheral register snapshot** (RAM excluded by default due to size). Output files are written to the current directory.
+
+### Output files
+
+| File | Contents |
+|---|---|
+| `ficr.bin` | Raw FICR region (256 bytes) |
+| `ficr.json` | Decoded: device ID, BLE MAC, ER/IR keys, flash geometry |
+| `uicr.bin` | Raw UICR region (256 bytes) |
+| `uicr.json` | Decoded: readback protection, bootloader address, CUSTOMER[] words |
+| `ram.bin` | Raw SRAM dump (16 KB, only if requested) |
+| `peripherals.json` | Decoded peripheral register snapshot |
+
+### Options
+
+```
+--regions   Comma-separated list: ficr, uicr, ram, peripherals (default: ficr,uicr,peripherals)
+--out-dir   Output directory (default: current directory)
+```
+
+Examples:
+```bash
+# Everything including RAM
+python nrf51_extract.py --regions ficr,uicr,ram,peripherals
+
+# FICR and UICR only, write to a dedicated folder
+python nrf51_extract.py --regions ficr,uicr --out-dir device_dump/
+
+# Peripheral snapshot only
+python nrf51_extract.py --regions peripherals
+```
+
+### What FICR/UICR JSON contains
+
+**ficr.json** — `DEVICEID`, `DEVICEADDR` (BLE MAC), `DEVICEADDRTYPE`, `ER` (Encryption Root, 128-bit), `IR` (Identity Root, 128-bit), `CODEPAGESIZE`, `CODESIZE`, `CONFIGID`
+
+**uicr.json** — `RBPCONF` (readback protection state), `BOOTLOADERADDR`, `CUSTOMER[0..31]` (32 words of user storage, often holds serial numbers or provisioning tokens), `NRFFW`, `NRFHW`
+
+### What the peripheral snapshot covers
+
+NVMC (flash write protection), POWER (reset reason, RAM blocks), RADIO (base addresses, CRC config — reveals BLE vs proprietary RF), UART0/SPI0/SPI1/TWI0/TWI1 (all PSEL pin assignments and baud/frequency), GPIOTE (event/task config), GPIO (all 32 PIN_CNF registers — full hardware pin mapping), PPI channels, WDT, and AAR/CCM/ECB data pointer registers (point to live key material in RAM).
+
+---
+
+# How to write an image to a new device
 
 ```
 telnet localhost 4444
-reset halt 
+reset halt
 nrf51 mass_erase
 flash write_image dump.bin 0
 flash write_image uicr.bin 0x10001000
