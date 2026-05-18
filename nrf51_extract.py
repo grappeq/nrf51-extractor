@@ -284,7 +284,8 @@ def dump_block(sock, name, start, length, out_dir):
 
     words = []
     for _addr, value in swd.read_block(sock, start, length,
-                                        output_path=str(bin_path), label=name):
+                                        output_path=str(bin_path), label=name,
+                                        word_reader=swd.read_word_direct):
         words.append(value)
 
     print(f"[{name}] Saved {bin_path}")
@@ -325,7 +326,7 @@ def dump_peripherals(sock, out_dir):
     for entry in PERIPHERAL_MAP:
         name, addr, decoder = entry
         try:
-            value = swd.read_word(sock, addr)
+            value = swd.read_word_direct(sock, addr)
         except Exception as exc:
             print(f"  ERROR reading {name} @ {addr:#010x}: {exc}")
             results[name] = {"error": str(exc)}
