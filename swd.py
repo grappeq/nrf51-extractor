@@ -33,11 +33,11 @@ def tncmd(sock, cmd):
     return read_until(sock).decode("ascii", errors="strict")
 
 
-def reconnect():
+def reconnect(reset=False):
     sock = socket.create_connection((HOST, PORT), timeout=TIMEOUT)
     sock.settimeout(TIMEOUT)
     read_until(sock)
-    tncmd(sock, "reset halt")
+    tncmd(sock, "reset halt" if reset else "halt")
     return sock
 
 
