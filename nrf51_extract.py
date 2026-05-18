@@ -276,9 +276,9 @@ PERIPHERAL_MAP = [
 # Block dump
 # ---------------------------------------------------------------------------
 
-def dump_block(sock, name, start, length, out_dir):
-    bin_path = out_dir / f"{name}.bin"
-    json_path = out_dir / f"{name}.json"
+def dump_block(sock, name, start, length, out_dir, suffix=""):
+    bin_path = out_dir / f"{name}{suffix}.bin"
+    json_path = out_dir / f"{name}{suffix}.json"
 
     print(f"\n=== {name.upper()} ({start:#010x}, {length} bytes) ===")
 
@@ -317,7 +317,7 @@ def _print_decoded(name, decoded, indent=0):
 # Peripheral snapshot
 # ---------------------------------------------------------------------------
 
-def dump_peripherals(sock, out_dir):
+def dump_peripherals(sock, out_dir, suffix=""):
     print("\n=== PERIPHERAL SNAPSHOT ===")
 
     results = {}
@@ -358,7 +358,7 @@ def dump_peripherals(sock, out_dir):
             dec_str = ""
         print(f"  {name:<{col_name}}  {addr:#010x}  {raw_str:<12}  {dec_str}")
 
-    json_path = out_dir / "peripherals.json"
+    json_path = out_dir / f"peripherals{suffix}.json"
     with json_path.open("w") as f:
         json.dump(results, f, indent=2)
     print(f"\n[peripherals] Saved {json_path}")
@@ -390,6 +390,10 @@ def main():
         "--reset", action="store_true", default=False,
         help="Issue 'reset halt' on connect instead of plain 'halt' (destroys runtime state)",
     )
+    parser.add_argument(
+        "--suffix", default="",
+        help="Suffix for all output filenames, e.g. '_device1' -> ficr_device1.bin (default: none)",
+    )
     args = parser.parse_args()
 
     requested = {r.strip().lower() for r in args.regions.split(",")}
@@ -412,10 +416,10 @@ def main():
             if region not in requested:
                 continue
             start, length = REGIONS[region]
-            dump_block(sock, region, start, length, out_dir)
+            dump_block(sock, region, start, length, out_dir, suffix=args.suffix)
 
         if "peripherals" in requested:
-            dump_peripherals(sock, out_dir)
+            dump_peripherals(sock, out_dir, suffix=args.suffix)
 
     except KeyboardInterrupt:
         print("\nInterrupted by user")
